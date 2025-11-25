@@ -5,8 +5,8 @@ defmodule Paxtor.MixProject do
     [
       app: :paxtor,
       package: package(),
-      version: "0.1.0",
-      elixir: "~> 1.18",
+      version: "0.2.0",
+      elixir: "~> 1.17 or ~> 1.18 or ~> 1.19",
       start_permanent: Mix.env() == :prod,
       deps: deps()
     ]
@@ -33,7 +33,7 @@ defmodule Paxtor.MixProject do
   defp deps do
     [
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
-      {:paxos_kv, "~> 0.3"}
+      {:paxos_kv, "~> 0.4"}
     ]
   end
 end

@@ -24,7 +24,7 @@ defmodule Paxtor.Spawn do
   end
 
   defp start_child(key, child_spec) do
-    supervisor = {Paxtor.RegistrySupervisor, chosen_node(key)}
+    supervisor = {Paxtor.Spawn.Supervisor, chosen_node(key)}
     child_spec = normalized_child_spec(child_spec, key)
     Supervisor.start_child(supervisor, child_spec)
   end

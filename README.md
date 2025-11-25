@@ -45,7 +45,7 @@ Paxtor provides two core features to help you build CP-style distributed
 applications:
 
 1. **Cluster-wide Locking** -- `Paxtor.lock/1`
-2. **Cluster-wide Singleton Processes** -- `Paxtor.via/2`
+2. **Cluster-wide Singleton Processes** -- `Paxtor.name/2`
 
 Both rely on **consensus** to guarantee that at any given time, there is a
 single agreed-upon owner process for a given key.
@@ -85,21 +85,21 @@ This simple primitive allows you to enforce **cluster-wide mutual exclusion**.
 You can use it to serialize critical sections, manage distributed resources,
 and avoid conflicts by coordination.
 
-## 🔹 2. Cluster-wide Singleton Processes -- `Paxtor.via/2`
+## 🔹 2. Cluster-wide Singleton Processes -- `Paxtor.name/2`
 
 Paxtor also provides a way to ensure that, for a given key, there is **exactly
 one process** running in the cluster - and that processes on all nodes can find
 it.
 
 ```elixir
-  Paxtor.via(key, child_spec)
+  Paxtor.name(key, child_spec)
 ```
 
 ### How it works
 
-- When calling `Paxtor.via/2`, you actually get a `via` tuple, which can be
-  used as a process name and will resolve to the corresponding process
-  identifier (pid).
+- When calling `Paxtor.name/2`, you actually get a `via` tuple, which can be
+  used as a process name and will resolve to the corresponding pid (process
+  identifier).
 - The first time a pid is requested for a given key, Paxtor **starts it**
   (using the provided `child_spec`) on one of the cluster nodes.
 - If a process already exists under that key, Paxtor simply returns its pid -
@@ -111,17 +111,13 @@ You can use the returned via tuple wherever you'd normally use a process name
 or pid:
 
 ```elixir
-GenServer.call(Paxtor.via(:my_key, {MyWorker, ...}), :call_message)
-
-# or in an easier to diges syntax:
-
-:my_key
-|> Paxtor.via(_child_spec = {MyWorker, ...})
-|> GenServer.call(:call_message)
+my_key = Paxtor.name(:my_key, _child_spec = {MyWorker, ...})
+GenServer.call(my_key, :call_message)
 ```
 
-If the process hasn't been started yet, this call will cause it to be launched
-on one node of the cluster, and the message will be sent to it once ready.
+If the process hasn't been started yet, GenServer.call will cause it to be
+launched on one node of the cluster, and the message will be sent to it once
+ready.
 
 ### Notes
 
@@ -136,6 +132,9 @@ on one node of the cluster, and the message will be sent to it once ready.
   owner process**.
 - Under the hood, Paxtor uses **consensus** to guarantee that all nodes agree
   on which process currently owns a given key.
+- The process launched does not have to be a GenServer. You can starat anything
+  that can be described by a child spec: state machines, tasks, agents, even
+  supervisors.
 
 ----
 
@@ -144,17 +143,18 @@ on one node of the cluster, and the message will be sent to it once ready.
 Paxtor internally builds upon [PaxosKV](https://github.com/bsanyi/paxos_kv) - a
 key-value store based on the Basic Paxos consensus algorithm.
 
-Each operation in Paxtor (locking or singleton process) ultimately translates
+Each operation in Paxtor (locking or singleton processes) ultimately translates
 into `PaxosKV.put` operatins, that translate into Basic Paxos rounds that
 ensure a majority of nodes agree on the cluster's current state.
 
 This means:
 
 - You get **strong consistency guarantees**.
-- You **don't** get "best-effort" delivery like PubSub or gossip-based systems.
+- You **don't** get "best-effort" delivery like PubSubs or gossip-based systems.
 - When the cluster is partitioned, Paxtor will **prefer to wait** for recovery
   rather than risk inconsistency.
-- When you use Paxtor, you also get PaxosKV features for free.
+- When you use Paxtor, you also get PaxosKV features for free. Paxtor uses
+  separate bucket, so you don't need to worry about key collisions.
 
 ----
 
@@ -170,27 +170,56 @@ increment requests for the `key`.  When the request has been served, the
 handler process dies, so the lock is automatically released.
 
 ```elixir
-def increment(conn, %{"key" => key}) do
-  Paxtor.lock(key)
-
-  counter = read_counter(key)
-  new_counter = counter + 1
-  write_counter(key, new_counter)
-
-  json(conn, %{
-    key: key,
-    old_value: counter,
-    new_value: new_counter
-  })
-end
+    def increment(conn, %{"key" => key}) do
+      Paxtor.lock(key)
+    
+      counter = read_counter(key)
+      new_counter = counter + 1
+      write_counter(key, new_counter)
+    
+      json(conn, %{
+        key: key,
+        old_value: counter,
+        new_value: new_counter
+      })
+    end
 ```
+
+Here's another example that you can copy-and-paste into the IEx shell and see
+how locking works:
+
+```elixir
+    for i <- 0..9 do
+      spawn(fn ->
+        Paxtor.lock("some key")
+        for _ <- 1..5 do
+          Process.sleep(100)
+          IO.write(i)
+        end
+      end)
+    end
+```
+
+What the abbove code does is that it spawns 10 independent processes numbered
+from 0 up to 9.  Each process prints its number 5 times with 100 milliseconds
+sleep period between them, and then exists. But before doing anything, these
+processes try to acquire a lock on the same key.  Only one of them will
+succeed, and all the others have to wait for that process to finish.  If the
+first process exits, another one wakes up. So, you will see the same digit
+printed 5 times next to each other, then another digit is printed 5 times, and
+so on. If you remove the `Paxtor.lock("some key")` part, and try to run the
+code without it, the printed digits are mixed up.  You can also try to move the
+`Paxtor.lock` call into the inner `for`, and see what happens.  (Actually it
+runs like the code above, because the lock is reentrant, but feel free to try
+it yourself.)
 
 ### Cluster-wide Singleton Process for a `key`
 
-On the other hand, if you insist upon having a single process responsible for
-`key`, you can do it by having a `Counter` service, a GenServer in this case,
-that uses `Paxor` in its API function `increment(key)`.  In this case your Plug
-or Phoenix action can simply call `Counter.increment(key)` without locking.
+On the other hand, if you don't like the idea of locking, and you insist upon
+having a single process responsible for `key`, you can do it by having a
+`Counter` service, a GenServer in this case, that uses `Paxtor` in its API
+function `inc(name)`.  In this case your code can simply call
+`Counter.inc(name)` without locking.
 
 ```elixir
 defmodule Counter do
@@ -198,16 +227,8 @@ defmodule Counter do
   ##########################
   ###   API
 
-  @doc """
-  `Counter.increment(key)` will send an `:inc` increment message to the counter
-  process identified by `key`.  If this is the first time `key` is mentioned, a
-  brand new `Counter` process spins up for the `key`.
-  """
-
-  def increment(key) do
-    key
-    |> Paxtor.via(Counter)  # <== `Counter` is a child_spec in this context
-    |> GenServer.call(:inc)
+  def inc(name) do
+    GenServer.call(name, :inc)
   end
   
   ##########################
@@ -223,16 +244,52 @@ defmodule Counter do
 end
 ```
 
+This is just an ordinary GenServer. You could start it just as you do with any
+other service: `{:ok, pid} = Counter.start_link([])`, and then increment the
+counter by calling `Counter.inc(pid)`.  But where is the fun in that?  Let's
+create two counters instead under two separate keys, like `"apple"` and
+`"banana"`:
+
+```elixir
+    apple = Paxtor.name("apple", Counter)
+    banana = Paxtor.name("banana", Counter)
+```
+
+At this moment not a single new process has been started, still you can think
+of them as they were.  You can increment those counters by calling
+`Counter.inc(apple)` and `Counter.inc(banana)`, and the counter increase
+independent from each other.  Actually the are started at the moment the first
+`Counter.inc` is called for the given name.
+
+The only function you need to know in order to work with singleton processes is
+`Paxtor.name/2`. But there are others, like `Paxtor.whereis/1`.  You can check
+the pid of the started counter process with `Paxtor.whereis(apple)` and
+`Paxtor.whereis(banana)`. If you try to do that before sending any
+`Counter.inc` requests, `Paxtor.whereis` will start the process and return a
+pid.
+
 ----
 
 ## 🛠️ Installation
 
 Add `:paxtor` as a dependency to your `mix.exs`, like
 
-    {:paxtor, "~> 0.1.0"}
+```elixir
+    {:paxtor, "~> 0.4"}
+```
 
 or just use `mix igniter.install paxtor`.  Take a look at `mix hex.info paxtor`
 for an up-to-date version number.
+
+If you still use Rebar in your Erlang project, consider switching to Mix, but
+in the meantime add
+
+```erlang
+    {paxtor, "0.4.0"}`
+```
+
+
+to the `deps` section of your `rebar.config`.
 
 ----
 

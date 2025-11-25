@@ -6,10 +6,13 @@ defmodule Paxtor.Application do
   @impl true
   def start(_type, _args) do
     children = [
-      Paxtor.RegistrySupervisor,
+      {Paxtor.Sup, name: Paxtor.Spawn.Supervisor},
+      {Paxtor.Sup, name: Paxtor.StartChild.Supervisor},
       {PaxosKV.Bucket, bucket: Paxtor.Spawn},
+      {PaxosKV.Bucket, bucket: Paxtor.StartChild},
       {PaxosKV.Bucket, bucket: Paxtor.Lock},
       {PaxosKV.PauseUntil, fn -> PaxosKV.Helpers.wait_for_bucket(Paxtor.Spawn) end},
+      {PaxosKV.PauseUntil, fn -> PaxosKV.Helpers.wait_for_bucket(Paxtor.StartChild) end},
       {PaxosKV.PauseUntil, fn -> PaxosKV.Helpers.wait_for_bucket(Paxtor.Lock) end}
     ]
 
