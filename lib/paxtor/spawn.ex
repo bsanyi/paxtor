@@ -11,6 +11,22 @@ defmodule Paxtor.Spawn do
     {:via, __MODULE__, {key, child_spec}}
   end
 
+  def alive?(key) do
+    key
+    |> lookup()
+    |> is_pid()
+  end
+
+  def lookup(key) do
+    node = PaxosKV.get(key, bucket: __MODULE__)
+
+    if node && Node.ping(node) == :pong do
+      Paxtor.Sup.pid({Paxtor.Spawn.Supervisor, node}, key)
+    else
+      nil
+    end
+  end
+
   use Paxtor.RegistryBehaviour
 
   @impl Paxtor.RegistryBehaviour

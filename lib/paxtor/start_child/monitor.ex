@@ -21,7 +21,7 @@ defmodule Paxtor.StartChild.Monitor do
     node = Enum.random(PaxosKV.Cluster.nodes())
     my_node = Node.self()
 
-    case PaxosKV.put({:node, key}, node, node: node, bucket: @bucket, no_quorum: :retry) do
+    case PaxosKV.put(key, node, node: node, bucket: @bucket, no_quorum: :retry) do
       {:ok, ^my_node} ->
         {:stop, :shutdown, state}
 
@@ -53,7 +53,10 @@ defmodule Paxtor.StartChild.Monitor do
   def handle_call(:ping, _from, state), do: {:reply, :pong, state}
 
   @impl true
-  def handle_info(Msg.monitor_down(ref: _, type: :process, pid: pid, reason: _), {key, custom_child_spec, pid}) do
+  def handle_info(
+        Msg.monitor_down(ref: _, type: :process, pid: pid, reason: _),
+        {key, custom_child_spec, pid}
+      ) do
     {:noreply, {key, custom_child_spec}, {:continue, :monitor_pid}}
   end
 end

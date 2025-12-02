@@ -29,7 +29,10 @@ defmodule Paxtor.RegistryBehaviour do
   end
 
   def whereis(name) when is_atom(name), do: Process.whereis(name)
-  def whereis({name, node}) when is_atom(name) and is_atom(node), do: :erpc.call(node, Process, :whereis, [name])
+
+  def whereis({name, node}) when is_atom(name) and is_atom(node),
+    do: :erpc.call(node, Process, :whereis, [name])
+
   def whereis({:via, module, name}), do: module.whereis_name(name)
   def whereis({:global, name}), do: whereis({:via, :global, name})
 end

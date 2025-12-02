@@ -25,8 +25,13 @@ defmodule Paxtor.StartChild do
   end
 
   def lookup(key) do
-    node = primary_node(key)
-    Paxtor.Sup.pid({@supervisor, node}, key)
+    node = PaxosKV.get(key, bucket: __MODULE__)
+
+    if node && Node.ping(node) == :pong do
+      Paxtor.Sup.pid({@supervisor, node}, key)
+    else
+      nil
+    end
   end
 
   @doc """
@@ -49,24 +54,9 @@ defmodule Paxtor.StartChild do
   Checks if the given `key` has a running, alive process in the cluster.
   """
   def alive?(key) do
-    node = PaxosKV.get({:node, key}, bucket: __MODULE__)
-
-    if Node.ping(node) == :pong do
-      case Paxtor.Sup.pid({@supervisor, node}, key) do
-        pid when is_pid(pid) -> PaxosKV.Helpers.process_alive?(pid)
-        _ -> false
-      end
-    else
-      false
-    end
-  end
-
-  def debug do
-    for node <- PaxosKV.Cluster.nodes() do
-      IO.puts "\n#{node}:"
-      dbg(Supervisor.which_children({@supervisor, node}))
-    end
-    :ok
+    key
+    |> lookup()
+    |> is_pid()
   end
 
   use Paxtor.RegistryBehaviour
@@ -77,7 +67,10 @@ defmodule Paxtor.StartChild do
 
   defp primary_node(key) do
     node = Enum.random(PaxosKV.Cluster.nodes())
-    {:ok, node} = PaxosKV.put({:node, key}, node, bucket: __MODULE__, node: node, no_quorum: :retry)
+
+    {:ok, node} =
+      PaxosKV.put(key, node, bucket: __MODULE__, node: node, no_quorum: :retry)
+
     node
   end
 
@@ -108,7 +101,11 @@ defmodule Paxtor.StartChild do
   defp start_others(result, key, child_spec, except) do
     case Paxtor.Helpers.pid_from(result) do
       pid when is_pid(pid) ->
-        spawn(fn -> Paxtor.Helpers.start_children(custom_child_spec(key, child_spec), @supervisor, except: except) end)
+        spawn(fn ->
+          Paxtor.Helpers.start_children(custom_child_spec(key, child_spec), @supervisor,
+            except: except
+          )
+        end)
 
       _ ->
         nil

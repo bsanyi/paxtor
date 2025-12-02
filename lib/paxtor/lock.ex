@@ -7,7 +7,6 @@ defmodule Paxtor.Lock do
 
   require Logger
 
-  @doc File.read!(Path.join(__DIR__, "../../docs/lock.md"))
   def lock(key, opts) do
     block? = Keyword.get(opts, :block, true)
     no_quorum = Keyword.get(opts, :no_quorum, :retry)

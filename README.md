@@ -39,6 +39,31 @@ temporary availability - then Paxtor is the right foundation for your system.
 
 ---
 
+## ⚙️  Start the cluster for testing and development
+
+Paxtor is based on PaxosKV, that provides a consensus layer based on Paxos.
+Consensus only makes sense if you have many nodes in your cluster, not only one,
+so you should start your application in distibuted mode, and not in a single,
+isolated instance. Start at least two of them, and ask them to form a BEAM cluster.
+The simplest way to do so is to use the `node` Mix task from PaxosKV. For further
+details please consult the PaxosKV documentation, but for a quick start, here's how
+you can start your cluster easily:
+
+```
+    iex -S mix node _
+```
+
+This is a shell command that starts IEx, loads and starts your application,
+initializes distributed mode, and also chooses a node name for your node. The
+default cluster size in PaxosKV is 3, and consensus is impossible without a
+majority of nodes. That means you need at least 2 nodes running and forming a
+cluster to use PaxosKV and Paxtor, so start another node with the same command
+in a different terminal window. You should see a log message that says `Quorum
+reached. [cluster:2/3]`, which means your cluster consists of 2 up and running
+nodes out of 3, and it is able to reach consensus.
+
+---
+
 ## ✨ Features
 
 Paxtor provides two core features to help you build CP-style distributed
@@ -257,8 +282,8 @@ create two counters instead under two separate keys, like `"apple"` and
 
 At this moment not a single new process has been started, still you can think
 of them as they were.  You can increment those counters by calling
-`Counter.inc(apple)` and `Counter.inc(banana)`, and the counter increase
-independent from each other.  Actually the are started at the moment the first
+`Counter.inc(apple)` and `Counter.inc(banana)`, and the counters increase
+independent from each other.  Actually they are started at the moment the first
 `Counter.inc` is called for the given name.
 
 The only function you need to know in order to work with singleton processes is
