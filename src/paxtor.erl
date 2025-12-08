@@ -19,7 +19,7 @@ paxtor:lock(Key).
 Acquires a cluster-wide lock on a resource represented by `Key`.
 
 For further information please consult the Elixir documentation of
-`Paxtor.lock/1` or the content of the file `doc/lock.md`.
+`Paxtor.lock/1` or the content of the file `docs/lock.md`.
 """.
 
 lock(Key) ->

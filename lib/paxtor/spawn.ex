@@ -47,8 +47,10 @@ defmodule Paxtor.Spawn do
 
   defp chosen_node(key) do
     node = Enum.random(PaxosKV.Cluster.nodes())
-    {:ok, node} = PaxosKV.put(key, node, node: node, bucket: __MODULE__, no_quorum: :retry)
-    node
+    case PaxosKV.put(key, node, node: node, bucket: __MODULE__, no_quorum: :retry) do
+      {:ok, node} -> node
+      {:error, :invalid_value} -> chosen_node(key)
+    end
   end
 
   defp normalized_child_spec(child_spec, key) do
