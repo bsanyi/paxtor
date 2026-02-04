@@ -18,13 +18,19 @@ defmodule Paxtor.Spawn do
   end
 
   def lookup(key) do
-    node = PaxosKV.get(key, bucket: __MODULE__)
+    case PaxosKV.get(key, bucket: __MODULE__, no_quorum: :retry) do
+      {:ok, node} ->
+        if node && Node.ping(node) == :pong do
+          Paxtor.Sup.pid({Paxtor.Spawn.Supervisor, node}, key)
+        else
+          nil
+        end
 
-    if node && Node.ping(node) == :pong do
-      Paxtor.Sup.pid({Paxtor.Spawn.Supervisor, node}, key)
-    else
-      nil
+      {:error, :not_found} ->
+        nil
     end
+  catch
+    _, _ -> nil
   end
 
   use Paxtor.RegistryBehaviour
@@ -37,6 +43,11 @@ defmodule Paxtor.Spawn do
       {:error, {:already_started, pid}} when is_pid(pid) -> pid
       no_pid_reponse -> throw({:no_pid, no_pid_reponse})
     end
+  catch
+    # :error, {:erpc, :noconnection} ->
+    a, b ->
+      IO.inspect([ERROR, a, b])
+      lookup(key)
   end
 
   defp start_child(key, child_spec) do
@@ -47,9 +58,11 @@ defmodule Paxtor.Spawn do
 
   defp chosen_node(key) do
     node = Enum.random(PaxosKV.Cluster.nodes())
-    case PaxosKV.put(key, node, node: node, bucket: __MODULE__, no_quorum: :retry) do
+
+    case PaxosKV.put(key, node, node: node, bucket: __MODULE__, no_quorum: :return) do
       {:ok, node} -> node
       {:error, :invalid_value} -> chosen_node(key)
+      {:error, :no_quorum} -> chosen_node(key)
     end
   end
 

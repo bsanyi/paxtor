@@ -44,6 +44,7 @@ defmodule Paxtor do
     case Keyword.get(opts, :restart, :temporary) do
       :temporary -> Paxtor.Spawn.via(key, child_spec)
       :permanent -> Paxtor.StartChild.via(key, child_spec)
+      :lock -> Paxtor.Lock.via(key)
     end
   end
 

@@ -1,9 +1,15 @@
 defmodule Counter do
+  @moduledoc false
+
   #######################################
   ###  API
 
   def inc(counter) do
     GenServer.call(counter, :inc)
+  end
+
+  def ping(counter) do
+    GenServer.call(counter, :ping)
   end
 
   #######################################
@@ -16,4 +22,5 @@ defmodule Counter do
   def init(_), do: {:ok, 1}
 
   def handle_call(:inc, _from, counter), do: {:reply, counter, counter + 1}
+  def handle_call(:ping, _from, counter), do: {:reply, {:pong, Node.self(), self()}, counter}
 end

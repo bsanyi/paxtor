@@ -5,9 +5,10 @@ defmodule Paxtor.MixProject do
     [
       app: :paxtor,
       package: package(),
-      version: "0.2.6",
+      version: "0.3.0",
       elixir: "~> 1.17 or ~> 1.18 or ~> 1.19",
       start_permanent: Mix.env() == :prod,
+      elixirc_paths: elixirc_paths(Mix.env()),
       deps: deps()
     ]
   end
@@ -30,10 +31,13 @@ defmodule Paxtor.MixProject do
   defp extra_apps(:dev), do: [:logger, :wx, :observer]
   defp extra_apps(_), do: [:logger]
 
+  defp elixirc_paths(:test), do: ["lib", "test/support"]
+  defp elixirc_paths(_), do: ["lib"]
+
   defp deps do
     [
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
-      {:paxos_kv, "~> 0.4"}
+      {:paxos_kv, "~> 0.6.0"}
     ]
   end
 end

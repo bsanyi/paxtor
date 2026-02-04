@@ -21,3 +21,5 @@ paxtor-*.tar
 
 # Temporary files, for example, from tests.
 /tmp/
+
+*sw[po]

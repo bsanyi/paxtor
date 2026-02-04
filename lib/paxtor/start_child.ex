@@ -25,12 +25,16 @@ defmodule Paxtor.StartChild do
   end
 
   def lookup(key) do
-    node = PaxosKV.get(key, bucket: __MODULE__)
+    case PaxosKV.get(key, bucket: __MODULE__, no_quorum: :retry) do
+      {:ok, node} ->
+        if Node.ping(node) == :pong do
+          Paxtor.Sup.pid({@supervisor, node}, key)
+        else
+          nil
+        end
 
-    if node && Node.ping(node) == :pong do
-      Paxtor.Sup.pid({@supervisor, node}, key)
-    else
-      nil
+      {:error, :not_found} ->
+        nil
     end
   end
 
@@ -66,12 +70,19 @@ defmodule Paxtor.StartChild do
   def whereis_name({key, child_spec}), do: ensure_started(key, child_spec)
 
   defp primary_node(key) do
-    node = Enum.random(PaxosKV.Cluster.nodes())
+    with [_ | _] = nodes <- PaxosKV.Cluster.nodes(),
+         node <- Enum.random(nodes),
+         {:ok, node} <- PaxosKV.put(key, node, bucket: __MODULE__, node: node, no_quorum: :retry)
+    do
+      node
+    else
+      [] ->
+        PaxosKV.Helpers.random_backoff()
+        primary_node(key)
 
-    {:ok, node} =
-      PaxosKV.put(key, node, bucket: __MODULE__, node: node, no_quorum: :retry)
-
-    node
+      {:error, :invalid_value} ->
+        primary_node(key)
+    end
   end
 
   defp custom_child_spec(key, child_spec) do

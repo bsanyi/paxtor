@@ -43,7 +43,7 @@ temporary availability - then Paxtor is the right foundation for your system.
 
 Paxtor is based on PaxosKV, that provides a consensus layer based on Paxos.
 Consensus only makes sense if you have many nodes in your cluster, not only one,
-so you should start your application in distibuted mode, and not in a single,
+so you should start your application in distributed mode, and not in a single,
 isolated instance. Start at least two of them, and ask them to form a BEAM cluster.
 The simplest way to do so is to use the `node` Mix task from PaxosKV. For further
 details please consult the PaxosKV documentation, but for a quick start, here's how
@@ -99,7 +99,7 @@ mechanism**.
 - **The only way to release a lock** is for the owning process to exit. Once
   that happens, waiting processes are unblocked, and one of them will acquire
   the lock.
-- If you need more controll over lock releases, consider outsourcing the job to
+- If you need more control over lock releases, consider outsourcing the job to
   a Task and do the locking in a short lived Task process instead.
 
 ### Why this matters
@@ -128,7 +128,7 @@ it.
 - The first time a pid is requested for a given key, Paxtor **starts it**
   (using the provided `child_spec`) on one of the cluster nodes.
 - If a process already exists under that key, Paxtor simply returns its pid -
-  it **does not starts a duplicate**.
+  it **does not start a duplicate**.
 - Any process in the cluster can use the same `key` **to refer to or
   communicate with** that single running process.
 
@@ -157,7 +157,7 @@ ready.
   owner process**.
 - Under the hood, Paxtor uses **consensus** to guarantee that all nodes agree
   on which process currently owns a given key.
-- The process launched does not have to be a GenServer. You can starat anything
+- The process launched does not have to be a GenServer. You can start anything
   that can be described by a child spec: state machines, tasks, agents, even
   supervisors.
 
@@ -169,7 +169,7 @@ Paxtor internally builds upon [PaxosKV](https://github.com/bsanyi/paxos_kv) - a
 key-value store based on the Basic Paxos consensus algorithm.
 
 Each operation in Paxtor (locking or singleton processes) ultimately translates
-into `PaxosKV.put` operatins, that translate into Basic Paxos rounds that
+into `PaxosKV.put` operations, that translate into Basic Paxos rounds that
 ensure a majority of nodes agree on the cluster's current state.
 
 This means:
@@ -225,9 +225,9 @@ how locking works:
     end
 ```
 
-What the abbove code does is that it spawns 10 independent processes numbered
+What the above code does is that it spawns 10 independent processes numbered
 from 0 up to 9.  Each process prints its number 5 times with 100 milliseconds
-sleep period between them, and then exists. But before doing anything, these
+sleep period between them, and then exits. But before doing anything, these
 processes try to acquire a lock on the same key.  Only one of them will
 succeed, and all the others have to wait for that process to finish.  If the
 first process exits, another one wakes up. So, you will see the same digit
